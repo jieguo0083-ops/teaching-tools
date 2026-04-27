@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>句子扩展拼图游戏 | 英语写作教学</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none; /* 避免拖拽时选中文本，但不影响输入 */
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: #e7e4db;  /* 莫兰迪底色 */
+            font-family: 'Segoe UI', 'Roboto', 'Noto Sans', system-ui, -apple-system, 'Helvetica Neue', sans-serif;
+            padding: 20px;
+            position: relative;
+        }
+
+        /* 半透明背景图 + 遮罩层 */
+        body::before {
+            content: "";
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('https://www.transparenttextures.com/patterns/floor-tile.png');
+            background-repeat: repeat;
+            opacity: 0.2;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 整体容器 */
+        .game-container {
+            max-width: 1300px;
+            margin: 0 auto;
+            background: rgba(245, 240, 230, 0.65);
+            backdrop-filter: blur(2px);
+            border-radius: 48px;
+            padding: 1.5rem 1.2rem 2rem;
+            box-shadow: 0 20px 35px rgba(0, 0, 0, 0.1);
+            position: relative;
+            z-index: 2;
+        }
+
+        /* 头部导航区域 */
+        .nav-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .arrow-btn {
+            background: #ccd5c1;
+            border: none;
+            font-size: 2.2rem;
+            width: 60px;
+            height: 60px;
+            border-radius: 40px;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #919b7c;
+            transition: 0.07s linear;
+            color: #4a5b3c;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #dbe3cf;
+        }
+
+        .arrow-btn:active {
+            transform: translateY(3px);
+            box-shadow: 0 2px 0 #919b7c;
+        }
+
+        .page-title {
+            font-size: 1.7rem;
+            font-weight: 600;
+            background: #efe9db;
+            padding: 0.4rem 1.5rem;
+            border-radius: 60px;
+            color: #6b5a4b;
+            box-shadow: inset 0 1px 3px #fff8, 0 5px 8px rgba(0,0,0,0.05);
+        }
+
+        /* 原始句子框 (柔和黄色) */
+        .original-sentence {
+            background: #f9efcf;
+            border-radius: 36px;
+            padding: 1.2rem 1rem;
+            margin: 20px 0 25px;
+            box-shadow: 0 10px 15px -8px rgba(0,0,0,0.2), inset 0 1px 0 #fff9;
+            text-align: center;
+            font-size: 1.3rem;
+            font-weight: 500;
+            color: #5b4c3a;
+            word-break: break-word;
+            border: 1px solid #e9dcb4;
+        }
+
+        /* 拼图句子区域 (包含单词块 + 插槽) */
+        .sentence-builder {
+            background: #dfd8cb80;
+            backdrop-filter: blur(4px);
+            border-radius: 45px;
+            padding: 1.6rem 1rem;
+            margin: 15px 0 20px;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s;
+        }
+
+        .slot-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 12px 8px;
+            row-gap: 16px;
+        }
+
+        /* 固定单词块 (柔和绿色) */
+        .word-block {
+            background: #c5dbc0;
+            padding: 10px 20px;
+            border-radius: 60px;
+            font-size: 1rem;
+            font-weight: 600;
+            color: #2c4b2c;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.1);
+            display: inline-block;
+            white-space: nowrap;
+        }
+
+        /* 插入槽容器 (淡底边框) */
+        .slot {
+            background: #f2eee7;
+            min-width: 80px;
+            min-height: 58px;
+            border-radius: 36px;
+            padding: 8px 12px;
+            display: inline-flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            border: 2px dashed #b7aa8f;
+            transition: all 0.15s;
+            box-shadow: inset 0 0 0 1px #ffffff80, 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .slot.drag-over {
+            border: 3px solid #6c9ebf;
+            background: #e9e2d4;
+            box-shadow: 0 0 0 2px #aac9e0;
+        }
+
+        /* 已放入slot的语块（柔和蓝绿色） */
+        .chunk-in-slot {
+            background: #b5cfd3;
+            padding: 6px 14px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #1e4a5f;
+            cursor: pointer;
+            transition: 0.1s;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+            display: inline-block;
+        }
+
+        .chunk-in-slot:active {
+            transform: scale(0.96);
+            background: #9ebcc1;
+        }
+
+        /* 拼图池区域 (柔和红色背景框) */
+        .pool-area {
+            background: #f2dbd4;
+            border-radius: 48px;
+            padding: 1.4rem 1rem;
+            margin-top: 20px;
+            box-shadow: inset 0 1px 4px #ffece3, 0 10px 20px rgba(0,0,0,0.08);
+        }
+
+        .pool-title {
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-left: 8px;
+            color: #9b6a5c;
+            font-size: 1.1rem;
+        }
+
+        .chunks-pool {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: flex-start;
+            align-items: center;
+        }
+
+        /* 拼图池中的语块（原始可拖拽） */
+        .pool-chunk {
+            background: #9fc7c1;
+            padding: 10px 20px;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #1f4958;
+            cursor: grab;
+            transition: 0.1s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            display: inline-block;
+        }
+
+        .pool-chunk:active {
+            cursor: grabbing;
+        }
+
+        .pool-chunk.used {
+            opacity: 0.35;
+            filter: grayscale(0.1);
+            cursor: not-allowed;
+        }
+
+        /* 按钮组 */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin: 25px 0 15px;
+        }
+
+        .btn {
+            border: none;
+            background: #c6cfb5;
+            padding: 12px 32px;
+            border-radius: 60px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #4f5e3c;
+            cursor: pointer;
+            box-shadow: 0 5px 0 #8f9b74;
+            transition: 0.05s linear;
+        }
+
+        .btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 2px 0 #8f9b74;
+        }
+
+        /* 反馈小人 + 彩带动效 */
+        .character-feedback {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-top: 10px;
+            font-size: 2.4rem;
+            gap: 12px;
+        }
+
+        .feedback-text {
+            font-size: 1rem;
+            background: #efefdf;
+            padding: 5px 12px;
+            border-radius: 30px;
+            color: #8a6b55;
+        }
+
+        /* 正确错误临时高亮 */
+        .highlight-green .word-block, 
+        .highlight-green .chunk-in-slot {
+            background-color: #b1d8a8 !important;
+            transition: 0.2s;
+            box-shadow: 0 0 0 2px #4a784a;
+        }
+
+        .highlight-red .word-block,
+        .highlight-red .chunk-in-slot {
+            background-color: #e4bcb4 !important;
+            transition: 0.2s;
+            box-shadow: 0 0 0 2px #bc6f5c;
+        }
+
+        /* 最终页样式 */
+        .final-paragraph {
+            background: #e2dbcfb3;
+            border-radius: 48px;
+            padding: 2rem;
+            margin-top: 20px;
+        }
+
+        .final-sentence-line {
+            padding: 12px 0;
+            font-size: 1.1rem;
+            border-bottom: 1px solid #cfc3ae;
+            color: #4c3f32;
+        }
+
+        /* 手机适配 */
+        @media (max-width: 700px) {
+            .game-container {
+                padding: 1rem;
+            }
+            .word-block, .chunk-in-slot, .pool-chunk {
+                font-size: 0.8rem;
+                padding: 6px 12px;
+            }
+            .slot {
+                min-width: 70px;
+            }
+            .arrow-btn {
+                width: 48px;
+                height: 48px;
+                font-size: 1.8rem;
+            }
+        }
+
+        /* 简单彩带效果容器 */
+        .confetti {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+        }
+        .confetti-piece {
+            position: absolute;
+            width: 8px;
+            height: 16px;
+            background: #f0a3b0;
+            opacity: 0.7;
+            animation: fall 2s ease-out forwards;
+        }
+        @keyframes fall {
+            0% { transform: translateY(-20vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+<div class="game-container" id="gameRoot">
+    <!-- 动态内容 -->
+</div>
+
+<script>
+    // ---------- 教学内容数据 (可集中修改) ----------
+    const sentencesData = [
+        {
+            id: 0,
+            title: "Sentence 1",
+            rawWords: ["A", "girl", "is", "reading", "a", "book"],    // 固定单词序列
+            poolChunks: ["beautiful", "carefully", "by the river", "on the sunny morning", "about arts"],
+            correctAnswer: "A beautiful girl is reading a book about arts carefully by the river on the sunny morning."
+        },
+        {
+            id: 1,
+            title: "Sentence 2",
+            rawWords: ["She", "loves", "reading", "books"],
+            poolChunks: ["interesting", "at home", "in her free time", "about advantures"],
+            correctAnswer: "She loves reading interesting books about advantures in her free time at home."
+        },
+        {
+            id: 2,
+            title: "Sentence 3",
+            rawWords: ["She", "studies"],
+            poolChunks: ["every day", "hard", "in the library", "of becoming a doctor", "to achieve her dream"],
+            correctAnswer: "She studies hard in the library every day to achieve her dream of becoming a doctor."
+        }
+    ];
+
+    // 全局状态
+    let currentPage = 0;          // 0,1,2 句子页； 3 = 最终页
+    // 每个句子独立的状态: { usedFlags: boolean[], slotsData: [][string] }  slotsData 是每个槽位内语块文本数组 (保持顺序)
+    // 槽位数量 = rawWords.length + 1 (句首 + 单词间 + 句尾)
+    let gameStates = [];
+
+    // 辅助函数: 初始化/重置某个句子的状态
+    function initSentenceState(sentenceIdx) {
+        const sentence = sentencesData[sentenceIdx];
+        const slotCount = sentence.rawWords.length + 1;
+        const chunks = sentence.poolChunks;
+        const usedFlags = new Array(chunks.length).fill(false);
+        const slotsData = Array(slotCount).fill().map(() => []);
+        return { usedFlags, slotsData };
+    }
+
+    // 重置所有句子状态
+    function initAllStates() {
+        gameStates = [];
+        for (let i = 0; i < sentencesData.length; i++) {
+            gameStates.push(initSentenceState(i));
+        }
+    }
+
+    // 获取当前句子索引(如果最终页则返回-1)
+    function getCurrentSentenceIndex() {
+        if (currentPage >= sentencesData.length) return -1;
+        return currentPage;
+    }
+
+    // 获取当前句子数据
+    function getCurrentSentence() {
+        if (currentPage < sentencesData.length) return sentencesData[currentPage];
+        return null;
+    }
+
+    // 根据当前句子状态构建最终句子字符串（用于判定）
+    function buildCurrentSentenceString(sentenceIdx) {
+        const sentence = sentencesData[sentenceIdx];
+        const state = gameStates[sentenceIdx];
+        const words = sentence.rawWords;
+        const slots = state.slotsData;   // 数组长度 = words.length+1
+        let resultParts = [];
+        // 句首槽
+        resultParts.push(...slots[0]);
+        for (let i = 0; i < words.length; i++) {
+            resultParts.push(words[i]);
+            // 词间槽 (第 i+1 个槽位)
+            if (i < words.length - 1) {
+                resultParts.push(...slots[i+1]);
+            } else {
+                // 最后一个单词后的句尾槽
+                resultParts.push(...slots[words.length]);
+            }
+        }
+        let builtStr = resultParts.join(' ').replace(/\s+/g, ' ').trim();
+        // 忽略标点差异进行比较(去除句号等)
+        let normalizedBuilt = builtStr.replace(/[.,!?;:]/g, '').toLowerCase();
+        let normalizedAnswer = sentence.correctAnswer.replace(/[.,!?;:]/g, '').toLowerCase();
+        return { builtStr, normalizedBuilt, normalizedAnswer };
+    }
+
+    // 检查当前句子是否正确并返回布尔值
+    function checkCurrentSentence(sentenceIdx) {
+        const { normalizedBuilt, normalizedAnswer } = buildCurrentSentenceString(sentenceIdx);
+        return normalizedBuilt === normalizedAnswer;
+    }
+
+    // UI效果：正确/错误高亮，小人动画，彩带
+    let effectTimeout = null;
+    function applyValidationEffect(isCorrect, sentenceIdx) {
+        const builderDiv = document.getElementById('sentenceBuilderArea');
+        if (!builderDiv) return;
+        builderDiv.classList.remove('highlight-green', 'highlight-red');
+        // 强制重绘小动画
+        void builderDiv.offsetWidth;
+        if (isCorrect) {
+            builderDiv.classList.add('highlight-green');
+            // 彩带效果
+            showConfetti();
+            // 小人跳跃动画 + emoji 变更
+            const charDiv = document.getElementById('characterEmoji');
+            if (charDiv) {
+                charDiv.innerHTML = '🎉';
+                charDiv.style.animation = 'jump 0.4s ease';
+                setTimeout(() => { if(charDiv) charDiv.style.animation = ''; }, 400);
+            }
+            const feedbackSpan = document.getElementById('feedbackMsg');
+            if(feedbackSpan) feedbackSpan.innerText = 'Perfect! 🎉';
+        } else {
+            builderDiv.classList.add('highlight-red');
+            const charDiv = document.getElementById('characterEmoji');
+            if (charDiv) {
+                charDiv.innerHTML = '😞';
+                charDiv.style.animation = 'shake 0.3s ease';
+                setTimeout(() => { if(charDiv) charDiv.style.animation = ''; }, 300);
+            }
+            const feedbackSpan = document.getElementById('feedbackMsg');
+            if(feedbackSpan) feedbackSpan.innerText = 'Try again! ✏️';
+        }
+        if (effectTimeout) clearTimeout(effectTimeout);
+        effectTimeout = setTimeout(() => {
+            if(builderDiv) builderDiv.classList.remove('highlight-green', 'highlight-red');
+            const feedbackSpan = document.getElementById('feedbackMsg');
+            if(feedbackSpan && isCorrect === false) feedbackSpan.innerText = 'Drag & drop to expand!';
+            else if(feedbackSpan && isCorrect) setTimeout(() => { if(feedbackSpan) feedbackSpan.innerText = 'Great!'; }, 1000);
+        }, 1200);
+    }
+
+    // 简单彩带
+    function showConfetti() {
+        const container = document.body;
+        const confettiDiv = document.createElement('div');
+        confettiDiv.className = 'confetti';
+        for (let i = 0; i < 80; i++) {
+            const piece = document.createElement('div');
+            piece.className = 'confetti-piece';
+            piece.style.left = Math.random() * 100 + '%';
+            piece.style.backgroundColor = `hsl(${Math.random() * 360}, 70%, 60%)`;
+            piece.style.width = Math.random() * 8 + 4 + 'px';
+            piece.style.height = Math.random() * 12 + 8 + 'px';
+            piece.style.animationDelay = Math.random() * 0.5 + 's';
+            confettiDiv.appendChild(piece);
+        }
+        container.appendChild(confettiDiv);
+        setTimeout(() => {
+            confettiDiv.remove();
+        }, 1800);
+    }
+
+    // 重绘当前页 (句子页 或 最终页)
+    function renderCurrentPage() {
+        const root = document.getElementById('gameRoot');
+        if (!root) return;
+        if (currentPage === sentencesData.length) {
+            // 最终页面
+            root.innerHTML = renderFinalPage();
+            attachFinalEvents();
+        } else {
+            root.innerHTML = renderSentencePage(currentPage);
+            attachSentenceEvents(currentPage);
+            // 更新高亮后恢复效果避免遗留样式
+            const builderDiv = document.getElementById('sentenceBuilderArea');
+            if(builderDiv) builderDiv.classList.remove('highlight-green', 'highlight-red');
+            const feedbackSpan = document.getElementById('feedbackMsg');
+            if(feedbackSpan) feedbackSpan.innerText = 'Drag words into slots!';
+        }
+    }
+
+    // 渲染句子页面
+    function renderSentencePage(sentenceIdx) {
+        const sentence = sentencesData[sentenceIdx];
+        const state = gameStates[sentenceIdx];
+        const words = sentence.rawWords;
+        const slotCount = words.length + 1;
+        const slotsData = state.slotsData;
+        // 构建槽位与单词交错HTML
+        let rowHtml = `<div class="slot-row" id="slotRowContainer">`;
+        // 句首槽位
+        rowHtml += `<div class="slot" data-slot-index="0" id="slot_0">`;
+        slotsData[0].forEach(chunkText => {
+            rowHtml += `<span class="chunk-in-slot" data-chunk-text="${escapeHtml(chunkText)}" data-slot="0" data-chunk-index="${getChunkIndexByText(sentenceIdx, chunkText)}">${escapeHtml(chunkText)}</span>`;
+        });
+        rowHtml += `</div>`;
+        for (let i = 0; i < words.length; i++) {
+            rowHtml += `<span class="word-block">${escapeHtml(words[i])}</span>`;
+            if (i < words.length - 1) {
+                // 中间槽位 i+1
+                rowHtml += `<div class="slot" data-slot-index="${i+1}" id="slot_${i+1}">`;
+                slotsData[i+1].forEach(chunkText => {
+                    rowHtml += `<span class="chunk-in-slot" data-chunk-text="${escapeHtml(chunkText)}" data-slot="${i+1}" data-chunk-index="${getChunkIndexByText(sentenceIdx, chunkText)}">${escapeHtml(chunkText)}</span>`;
+                });
+                rowHtml += `</div>`;
+            } else {
+                // 句尾槽位 = words.length
+                rowHtml += `<div class="slot" data-slot-index="${words.length}" id="slot_${words.length}">`;
+                slotsData[words.length].forEach(chunkText => {
+                    rowHtml += `<span class="chunk-in-slot" data-chunk-text="${escapeHtml(chunkText)}" data-slot="${words.length}" data-chunk-index="${getChunkIndexByText(sentenceIdx, chunkText)}">${escapeHtml(chunkText)}</span>`;
+                });
+                rowHtml += `</div>`;
+            }
+        }
+        rowHtml += `</div>`;
+
+        // 拼图池渲染 (基于当前state中的usedFlags)
+        let poolHtml = `<div class="chunks-pool" id="chunksPool">`;
+        sentence.poolChunks.forEach((chunk, idx) => {
+            const isUsed = state.usedFlags[idx];
+            const usedClass = isUsed ? 'used' : '';
+            poolHtml += `<div class="pool-chunk ${usedClass}" draggable="${!isUsed}" data-chunk-idx="${idx}" data-chunk-text="${escapeHtml(chunk)}">${escapeHtml(chunk)}</div>`;
+        });
+        poolHtml += `</div>`;
+
+        return `
+          <div class="nav-area">
+   	 <button class="arrow-btn" id="prevPageBtn" ${currentPage === 0 ? 'disabled style="opacity:0.5;"' : ''}>←</button>
+   	 <div class="page-title">${sentence.title}</div>
+   	 <button class="arrow-btn" id="nextPageBtn">→</button>
+	</div>
+            <div class="original-sentence">📖 原句: ${escapeHtml(sentence.rawWords.join(' '))}</div>
+            <div class="sentence-builder" id="sentenceBuilderArea">
+                ${rowHtml}
+            </div>
+            <div class="pool-area">
+                <div class="pool-title">🧩 语块拼图池 (拖拽副本)</div>
+                ${poolHtml}
+            </div>
+            <div class="action-buttons">
+                <button class="btn" id="checkBtn">✅ Check</button>
+                <button class="btn" id="resetBtn">🔄 Reset</button>
+            </div>
+            <div class="character-feedback">
+                <span id="characterEmoji">📖</span>
+                <span class="feedback-text" id="feedbackMsg">Drag & drop to expand!</span>
+            </div>
+        `;
+    }
+
+    function renderFinalPage() {
+        let answersHtml = `<div class="nav-area"><button class="arrow-btn" id="prevPageFinal">←</button><div class="page-title">✨ Final Paragraph ✨</div><div style="width:60px;"></div></div>`;
+        answersHtml += `<div class="final-paragraph">`;
+        sentencesData.forEach((sent, idx) => {
+            answersHtml += `<div class="final-sentence-line">${idx+1}. ${escapeHtml(sent.correctAnswer)}</div>`;
+        });
+        answersHtml += `</div>`;
+        return answersHtml;
+    }
+
+    // 根据文本获取在句子池中的索引 (用于恢复透明度)
+    function getChunkIndexByText(sentenceIdx, chunkText) {
+        const pool = sentencesData[sentenceIdx].poolChunks;
+        return pool.indexOf(chunkText);
+    }
+
+    // 通用事件挂载 (句子页)
+    function attachSentenceEvents(sentenceIdx) {
+        // 池子拖拽: dragstart
+        const chunks = document.querySelectorAll('.pool-chunk');
+        chunks.forEach(el => {
+            el.addEventListener('dragstart', handleDragStart);
+            el.addEventListener('dragend', handleDragEnd);
+        });
+        // 所有slot监听 dragover, drop
+        const slots = document.querySelectorAll('.slot');
+        slots.forEach(slot => {
+            slot.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                slot.classList.add('drag-over');
+            });
+            slot.addEventListener('dragleave', () => {
+                slot.classList.remove('drag-over');
+            });
+            slot.addEventListener('drop', (e) => handleDropOnSlot(e, sentenceIdx));
+        });
+        // 删除已经放入的语块 (事件委托)
+        const builder = document.getElementById('sentenceBuilderArea');
+        if (builder) {
+            builder.addEventListener('click', (e) => {
+                const target = e.target.closest('.chunk-in-slot');
+                if (target && target.classList.contains('chunk-in-slot')) {
+                    const chunkText = target.getAttribute('data-chunk-text');
+                    const slotIdx = parseInt(target.getAttribute('data-slot'));
+                    const chunkFullIdx = parseInt(target.getAttribute('data-chunk-index'));
+                    if (!isNaN(chunkFullIdx) && !isNaN(slotIdx)) {
+                        removeChunkFromSlot(sentenceIdx, slotIdx, chunkText, chunkFullIdx);
+                        renderCurrentPage();  // 刷新 UI
+                    }
+                }
+            });
+        }
+        // 按钮事件
+        const checkBtn = document.getElementById('checkBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const prevBtn = document.getElementById('prevPageBtn');
+        const nextBtn = document.getElementById('nextPageBtn');
+        if (checkBtn) checkBtn.onclick = () => {
+            const isCorrect = checkCurrentSentence(sentenceIdx);
+            applyValidationEffect(isCorrect, sentenceIdx);
+            if (isCorrect) {
+                // 正确后额外保留绿色高亮一段时间，不自动重置UI内容
+            }
+        };
+        if (resetBtn) resetBtn.onclick = () => {
+            gameStates[sentenceIdx] = initSentenceState(sentenceIdx);
+            renderCurrentPage();
+        };
+        if (prevBtn && currentPage > 0) prevBtn.onclick = () => { currentPage--; renderCurrentPage(); };
+        if (nextBtn) nextBtn.onclick = () => {
+            if (currentPage + 1 <= sentencesData.length) {
+                currentPage++;
+                renderCurrentPage();
+            }
+        };
+    }
+
+    let dragData = { chunkIdx: null, chunkText: null, sentenceIdx: null };
+    function handleDragStart(e) {
+        const target = e.target.closest('.pool-chunk');
+        if (!target) { e.preventDefault(); return false; }
+        if (target.classList.contains('used')) {
+            e.preventDefault();
+            return false;
+        }
+        const chunkIdx = target.getAttribute('data-chunk-idx');
+        const chunkText = target.getAttribute('data-chunk-text');
+        const curSentIdx = getCurrentSentenceIndex();
+        if (curSentIdx === null) return false;
+        // 检查当前语块是否已被使用(二次确保)
+        if (gameStates[curSentIdx].usedFlags[chunkIdx] === true) {
+            e.preventDefault();
+            return false;
+        }
+        dragData = { chunkIdx: parseInt(chunkIdx), chunkText: chunkText, sentenceIdx: curSentIdx };
+        e.dataTransfer.setData('text/plain', JSON.stringify(dragData));
+        e.dataTransfer.effectAllowed = 'copy';
+        // 设置拖拽图标
+        const dragIcon = document.createElement('div');
+        dragIcon.textContent = chunkText;
+        dragIcon.style.position = 'absolute';
+        dragIcon.style.top = '-1000px';
+        document.body.appendChild(dragIcon);
+        e.dataTransfer.setDragImage(dragIcon, 0, 0);
+        setTimeout(() => document.body.removeChild(dragIcon), 0);
+    }
+    function handleDragEnd(e) { dragData = null; }
+
+    function handleDropOnSlot(e, sentenceIdx) {
+        e.preventDefault();
+        const slotEl = e.target.closest('.slot');
+        if (!slotEl) return;
+        slotEl.classList.remove('drag-over');
+        const slotIndex = parseInt(slotEl.getAttribute('data-slot-index'));
+        if (isNaN(slotIndex)) return;
+        let dragInfo;
+        try {
+            const rawData = e.dataTransfer.getData('text/plain');
+            if (!rawData) return;
+            dragInfo = JSON.parse(rawData);
+        } catch(err) { return; }
+        if (!dragInfo || dragInfo.sentenceIdx !== sentenceIdx) return;
+        const chunkIdx = dragInfo.chunkIdx;
+        const chunkText = dragInfo.chunkText;
+        const state = gameStates[sentenceIdx];
+        if (state.usedFlags[chunkIdx] === true) return;
+        // 标记为已使用
+        state.usedFlags[chunkIdx] = true;
+        // 添加到slot数据
+        state.slotsData[slotIndex].push(chunkText);
+        // 刷新渲染
+        renderCurrentPage();
+    }
+
+    function removeChunkFromSlot(sentenceIdx, slotIdx, chunkText, chunkFullIdx) {
+        const state = gameStates[sentenceIdx];
+        if (!state) return;
+        const slotArray = state.slotsData[slotIdx];
+        const indexInSlot = slotArray.indexOf(chunkText);
+        if (indexInSlot !== -1) slotArray.splice(indexInSlot, 1);
+        // 恢复语块使用标记
+        if (chunkFullIdx !== undefined && state.usedFlags[chunkFullIdx] === true) {
+            state.usedFlags[chunkFullIdx] = false;
+        }
+    }
+
+    function attachFinalEvents() {
+        const prevBtn = document.getElementById('prevPageFinal');
+        if (prevBtn) prevBtn.onclick = () => {
+            if (currentPage > 0) {
+                currentPage--;
+                renderCurrentPage();
+            } else {
+                currentPage = sentencesData.length - 1;
+                renderCurrentPage();
+            }
+        };
+    }
+
+    function escapeHtml(str) { return String(str).replace(/[&<>]/g, function(m){if(m==='&') return '&amp;'; if(m==='<') return '&lt;'; if(m==='>') return '&gt;'; return m;}); }
+
+    // 添加跳跃动画css
+    const styleSheet = document.createElement("style");
+    styleSheet.textContent = `
+        @keyframes jump {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-18px); }
+            100% { transform: translateY(0px); }
+        }
+        @keyframes shake {
+            0% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+            100% { transform: translateX(0); }
+        }
+    `;
+    document.head.appendChild(styleSheet);
+    // 初始化全部状态和启动游戏
+    initAllStates();
+    renderCurrentPage();
+</script>
+</body>
+</html>
